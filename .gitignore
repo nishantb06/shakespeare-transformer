@@ -1,0 +1,11 @@
+*.pyc
+*.DS_Store
+
+.env
+*.json
+*.log
+*.yml
+*.yaml
+*.ini
+*.cfg
+*.conf

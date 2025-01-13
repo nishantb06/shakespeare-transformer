@@ -1,0 +1,45 @@
+import os
+import dataclasses
+from typing import Optional,List,Dict,Any,Tuple
+
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+from torch.nn import Transformer
+
+@dataclasses
+class Config:
+    vocab_size: int = 50257
+    n_heads: int = 12
+    dim: int = 768
+    max_seq_length: int = 2048
+    num_layers: int = 12
+    dropout: float = 0.1
+
+class MultiHeadAttention(nn.Module):
+    def __init__(self, n_dim) -> None:
+        super.__init__()
+        self.n_dim = n_dim
+        self.qkv_weights = nn.Linear(self.n_dim, self.n_dim * 3)
+
+    # dimension of x to be (batch_size, token_length, dim) => (B, C, D)
+    # return a tensor of similar shape but with attention scores weighted value vectors
+    def forward(self,x):
+        B,C,D = x.size()
+        q,k,v = 
+
+        pass
+
+class TransformerBlock(nn.Module):
+    def __init__(self) -> None:
+        pass
+    
+    def forward(self) -> None:
+        pass
+
+class DecoderOnlyTransformer(nn.Module):
+    def __init__(self) -> None:
+        super.__init__()
+
+    def forward(self) -> None:
+        pass
