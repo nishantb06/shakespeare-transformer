@@ -1,5 +1,5 @@
 import os
-import dataclasses
+from dataclasses import dataclass
 from typing import Optional,List,Dict,Any,Tuple
 
 import torch
@@ -7,7 +7,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.nn import Transformer
 
-@dataclasses
+@dataclass
 class Config:
     vocab_size: int = 50257
     n_heads: int = 12
@@ -16,19 +16,29 @@ class Config:
     num_layers: int = 12
     dropout: float = 0.1
 
+
 class MultiHeadAttention(nn.Module):
     def __init__(self, n_dim) -> None:
-        super.__init__()
+        super().__init__()
         self.n_dim = n_dim
         self.qkv_weights = nn.Linear(self.n_dim, self.n_dim * 3)
 
     # dimension of x to be (batch_size, token_length, dim) => (B, C, D)
-    # return a tensor of similar shape but with attention scores weighted value vectors
-    def forward(self,x):
-        B,C,D = x.size()
-        q,k,v = 
+    # return a tensor of similar shape but with attention scores weighted averaged value vectors
+    def forward(self, x):
+        B, C, D = x.size()
+        q, k, v = self.qkv_weights(x).split(
+            self.n_dim, dim=-1
+        )  # each of q,k v have a shape of (B,C,D)
+        k_t = k.transpose(2, 1)  # k_t : (B,D,C)
+        print(k_t.shape)
+        print(q.shape)
+        attention_matrix = torch.matmul(q, k_t)
+        attention_matrix = attention_matrix.softmax(dim=-1)
+        print(attention_matrix.shape)
+        v_output = attention_matrix @ v
+        print(v_output.shape)
 
-        pass
 
 class TransformerBlock(nn.Module):
     def __init__(self) -> None:
