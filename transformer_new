@@ -24,7 +24,13 @@ class MultiHeadAttention(nn.Module):
         self.n_dim = config.dim
         self.config = config
         self.n_heads = self.config.n_heads
+        self.dropout = self.config.dropout
+
         self.qkv_weights = nn.Linear(self.n_dim, self.n_dim * 3)
+        self.projection_layer = nn.Linear(self.n_dim, self.n_dim)
+
+        self.attention_dropout = nn.Dropout(self.dropout)
+        self.projection_dropout = nn.Dropout(self.dropout)
 
     # dimension of x to be (batch_size, token_length, dim) => (B, C, D)
     # return a tensor of similar shape but with attention scores weighted averaged value vectors
@@ -34,21 +40,27 @@ class MultiHeadAttention(nn.Module):
             self.n_dim, dim=-1
         )  # each of q,k v have a shape of (B,C,D)
         q = q.view(B, T, self.n_heads, C // self.n_heads).transpose(
-            2, 1
+            1, 2
         )  # (B, N_HEADS , T , D // N_HEADS) => (B, 12, T , 64)
-        k = (
-            k.view(B, T, self.n_heads, C // self.n_heads)
-            .transpose(2, 1)
-            .transpose(-2, -1)
-        )
-        v = v.view(B, T, self.n_heads, C // self.n_heads).transpose(2, 1)
+        k = k.view(B, T, self.n_heads, C // self.n_heads).transpose(1, 2)
+        v = v.view(B, T, self.n_heads, C // self.n_heads).transpose(1, 2)
 
-        attention_matrix = (torch.matmul(q, k) / (q.shape[-1] ** 0.5)).softmax(
-            dim=-1
-        )  # torch.Size([1, 12, 32, 32]) [B, num_heads, T, T]
+        attention_matrix = (q @ k.transpose(-2, -1)) * (1 / q.size(-1) ** 0.5)
+        attention_matrix = F.softmax(attention_matrix, dim=-1)  # (B, N_HEADS, T, T)
+        attention_matrix = self.attention_dropout(
+            attention_matrix
+        )  # (B, N_HEADS, T, T)
+
         v = (
-            (attention_matrix @ v).transpose(2, 1).reshape(B, T, -1)
+            (attention_matrix @ v)
+            .transpose(2, 1)
+            .contiguous()
+            .view(
+                B, T, C
+            )  # the contiguous is important because , to make memory contiguous
         )  # torch.Size([1, 32, 768]) [B, T, C]
+        v = self.projection_layer(v)
+        v = self.projection_dropout(v)
         return v
 
 
