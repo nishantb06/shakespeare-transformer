@@ -37,9 +37,15 @@ def train():
         progress_bar = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{num_epochs}")
 
         for batch_idx, (inputs, targets) in enumerate(progress_bar):
-            # Move data to device
+            # Move data to device and reshape inputs
             inputs = inputs.squeeze(1).to(device)  # Remove the extra dimension
             targets = targets.squeeze(1).to(device)  # Remove the extra dimension
+
+            # Add batch dimension if it's missing
+            if len(inputs.shape) == 1:
+                inputs = inputs.unsqueeze(0)
+            if len(targets.shape) == 1:
+                targets = targets.unsqueeze(0)
 
             # Forward pass
             outputs = model(inputs)
