@@ -37,33 +37,19 @@ class MultiHeadAttention(nn.Module):
     # return a tensor of similar shape but with attention scores weighted averaged value vectors
     def forward(self, x):
         B, T, C = x.size()
-        q, k, v = self.qkv_weights(x).split(
-            self.n_dim, dim=-1
-        )  # each of q,k v have a shape of (B,C,D)
-        q = q.view(B, T, self.n_heads, C // self.n_heads).transpose(
-            1, 2
-        )  # (B, N_HEADS , T , D // N_HEADS) => (B, 12, T , 64)
+        q, k, v = self.qkv_weights(x).split(self.n_dim, dim=-1)  # each of q,k v have a shape of (B,C,D)
+        q = q.view(B, T, self.n_heads, C // self.n_heads).transpose(1, 2)  # (B, N_HEADS , T , D // N_HEADS) => (B, 12, T , 64)
         k = k.view(B, T, self.n_heads, C // self.n_heads).transpose(1, 2)
         v = v.view(B, T, self.n_heads, C // self.n_heads).transpose(1, 2)
 
         attention_matrix = (q @ k.transpose(-2, -1)) * (1 / q.size(-1) ** 0.5)
         attention_matrix = F.softmax(attention_matrix, dim=-1)  # (B, N_HEADS, T, T)
-        attention_matrix = self.attention_dropout(
-            attention_matrix
-        )  # (B, N_HEADS, T, T)
+        attention_matrix = self.attention_dropout(attention_matrix)  # (B, N_HEADS, T, T)
 
-        v = (
-            (attention_matrix @ v)
-            .transpose(2, 1)
-            .contiguous()
-            .view(
-                B, T, C
-            )  # the contiguous is important because , to make memory contiguous
-        )  # torch.Size([1, 32, 768]) [B, T, C]
+        v = ((attention_matrix @ v).transpose(2, 1).contiguous().view(B, T, C))  # torch.Size([1, 32, 768]) [B, T, C]
         v = self.projection_layer(v)
         v = self.projection_dropout(v)
         return v
-
 
 class FeedForward(nn.Module):
     def __init__(self, config):
@@ -110,9 +96,7 @@ class DecoderOnlyTransformer(nn.Module):
         super().__init__()
         self.config = config
         self.embedding = nn.Embedding(self.config.vocab_size, self.config.dim)
-        self.positional_embedding = nn.Embedding(
-            self.config.vocab_size, self.config.dim
-        )
+        self.positional_embedding = nn.Embedding(self.config.max_seq_length, self.config.dim)
         self.dropout = nn.Dropout(config.dropout)
         self.transformer_blocks = nn.ModuleList(
             [TransformerBlock(self.config) for _ in range(self.config.num_layers)]
@@ -135,9 +119,7 @@ class DecoderOnlyTransformer(nn.Module):
         B, T = idx.size()  # (Batch size, number of tokens) # (1, T)
 
         # get positional embedding for seq 1 to T
-        positions = torch.arange(0, T, dtype=torch.long, device=idx.device).unsqueeze(
-            0
-        )  # [1, T]
+        positions = torch.arange(0, T, dtype=torch.long, device=idx.device).unsqueeze(0)  # [1, T]
 
         token_embeddings = self.embedding(idx)  # (1, T, n_dim)
         positional_embeddings = self.positional_embedding(positions)
@@ -163,6 +145,11 @@ class DecoderOnlyTransformer(nn.Module):
 if __name__ == "__main__":
     config = Config()
     model = DecoderOnlyTransformer(config)
+
+    # count number of parameters
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"Total number of parameters: {total_params}")
+    # 200,898,385
 
     # Example usage
     batch_size = 4
