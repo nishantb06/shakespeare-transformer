@@ -151,6 +151,7 @@ class DecoderOnlyTransformer(nn.Module):
         # final layer norm and linear projection for classification
         x = self.final_layer_norm(x)  # [B, T, n_embd]
         logits = self.classificatiion_layer(x)  # [B, T, vocab_size]
+        # INPUT    =========> PREDICTED TOKEN
         # [You]     ========> are
         # [You are]   ======> a
         # [You are a]   ====> fool
