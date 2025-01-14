@@ -47,20 +47,47 @@ def train():
             if len(targets.shape) == 1:
                 targets = targets.unsqueeze(0)
 
-            # Forward pass
-            outputs = model(inputs)
-            loss = criterion(outputs.view(-1, config.vocab_size), targets.view(-1))
+            # Ensure inputs are within vocab size range
+            if inputs.max() >= config.vocab_size or targets.max() >= config.vocab_size:
+                print(
+                    f"Warning: Input contains token IDs >= vocab_size ({config.vocab_size})"
+                )
+                inputs = torch.clamp(inputs, 0, config.vocab_size - 1)
+                targets = torch.clamp(targets, 0, config.vocab_size - 1)
 
-            # Backward and optimize
-            optimizer.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
+            try:
+                # Forward pass
+                outputs = model(inputs)  # [batch_size, seq_len, vocab_size]
 
-            # Update progress bar
-            total_loss += loss.item()
-            avg_loss = total_loss / (batch_idx + 1)
-            progress_bar.set_postfix({"loss": f"{avg_loss:.4f}"})
+                # Reshape for loss calculation
+                outputs = outputs.view(
+                    -1, config.vocab_size
+                )  # [batch_size * seq_len, vocab_size]
+                targets = targets.view(-1)  # [batch_size * seq_len]
+
+                loss = criterion(outputs, targets)
+
+                # Backward and optimize
+                optimizer.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+                optimizer.step()
+
+                # Update progress bar
+                total_loss += loss.item()
+                avg_loss = total_loss / (batch_idx + 1)
+                progress_bar.set_postfix(
+                    {
+                        "loss": f"{avg_loss:.4f}",
+                        "shape": f"in:{inputs.shape} out:{outputs.shape}",
+                    }
+                )
+
+            except RuntimeError as e:
+                print(f"Error in batch {batch_idx}")
+                print(f"Input shape: {inputs.shape}")
+                print(f"Target shape: {targets.shape}")
+                raise e
 
             # Log to wandb
             wandb.log({"train_loss": loss.item(), "epoch": epoch, "batch": batch_idx})
@@ -72,8 +99,20 @@ def train():
             for inputs, targets in test_dataloader:
                 inputs = inputs.squeeze(1).to(device)
                 targets = targets.squeeze(1).to(device)
+
+                if len(inputs.shape) == 1:
+                    inputs = inputs.unsqueeze(0)
+                if len(targets.shape) == 1:
+                    targets = targets.unsqueeze(0)
+
+                # Ensure inputs are within vocab size range
+                inputs = torch.clamp(inputs, 0, config.vocab_size - 1)
+                targets = torch.clamp(targets, 0, config.vocab_size - 1)
+
                 outputs = model(inputs)
-                loss = criterion(outputs.view(-1, config.vocab_size), targets.view(-1))
+                outputs = outputs.view(-1, config.vocab_size)
+                targets = targets.view(-1)
+                loss = criterion(outputs, targets)
                 val_loss += loss.item()
 
         val_loss /= len(test_dataloader)

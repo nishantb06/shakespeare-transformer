@@ -127,30 +127,34 @@ class DecoderOnlyTransformer(nn.Module):
             module.weight.data.fill_(1.0)
 
     def forward(self, idx) -> None:
-        B, T = idx.size()  # (Batch size, number of tokens) # (1, T)
+        B, T = idx.size()  # (Batch size, number of tokens)
+
+        # Debug shape information
+        if T > self.config.max_seq_length:
+            raise ValueError(
+                f"Input sequence length {T} exceeds maximum allowed length {self.config.max_seq_length}"
+            )
 
         # get positional embedding for seq 1 to T
-        positions = torch.arange(0, T, dtype=torch.long, device=idx.device).unsqueeze(
-            0
-        )  # [1, T]
+        positions = torch.arange(0, T, dtype=torch.long, device=idx.device).unsqueeze(0)
 
-        token_embeddings = self.embedding(idx)  # (1, T, n_dim)
-        positional_embeddings = self.positional_embedding(positions)
+        token_embeddings = self.embedding(idx)  # (B, T, n_dim)
+        positional_embeddings = self.positional_embedding(positions)  # (1, T, n_dim)
+
+        # Ensure shapes match for addition
+        if positional_embeddings.shape[1] != token_embeddings.shape[1]:
+            raise ValueError(
+                f"Shape mismatch: pos_emb:{positional_embeddings.shape} tok_emb:{token_embeddings.shape}"
+            )
 
         x = self.dropout(token_embeddings + positional_embeddings)
 
         # Transformer blocks
         for block in self.transformer_blocks:
-            x = block(x)  # [B, T, n_embd]
+            x = block(x)
 
-        # final layer norm and linear projection for classification
-        x = self.final_layer_norm(x)  # [B, T, n_embd]
-        logits = self.classificatiion_layer(x)  # [B, T, vocab_size]
-        # INPUT    =========> PREDICTED TOKEN
-        # [You]     ========> are
-        # [You are]   ======> a
-        # [You are a]   ====> fool
-        # [You are a fool] => EOS
+        x = self.final_layer_norm(x)
+        logits = self.classificatiion_layer(x)
 
         return logits
 
